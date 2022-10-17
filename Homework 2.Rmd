@@ -1,0 +1,90 @@
+---
+title: "Homework 2"
+author: "Helena Hu"
+date: "2022-10-16"
+output: html_document
+---
+```{r}
+library(readr)
+abalone <- read_csv('abalone.csv')
+```
+```{r}
+library(tidyverse)
+library(tidymodels)
+```
+
+## Question 1
+```{r}
+abalone <- abalone %>%
+  mutate(age = rings + 1.5)
+
+abalone %>% 
+  ggplot(aes(x = age)) +
+  geom_histogram(bins = 60) +
+  theme_bw()
+```
+'age' is right-skewed. Most of the mass of the distribution are at lower end with long tail to the right. Most of the abalone has age that are less than 15.
+
+
+## Question2
+```{r}
+set.seed(1222)
+
+abalone_split <- initial_split(abalone, prop = 0.70, strata = age)
+
+abalone_train <- training(abalone_split)
+abalone_test <- testing(abalone_split)
+```
+
+## Question 3
+```{r}
+abalone_recipe <- recipe(age ~ type + longest_shell + diameter + height + whole_weight + shucked_weight + viscera_weight + shell_weight, data = abalone_train) %>% 
+  step_dummy(all_nominal_predictors())
+
+interation_1 <- abalone_recipe %>%
+  step_interact(type ~ shucked_weight)
+interation_2 <- abalone_recipe %>%
+  step_interact(longest_shell ~ diameter)
+interation_3 <- abalone_recipe %>%
+  step_interact(shucked_weight ~ shell_weight)
+
+abalone_center <- abalone_recipe %>%
+  step_center(all_predictors())
+
+abalone_scale <- abalone_recipe %>%
+  step_scale(all_predictors())
+```
+We shouldn't use 'rings' to predict 'age' because the age is typically determined by the number of rings, but it's difficult to get the information about rings. The purpose of this data set is to determine whether other easier-to-obtain information besides rings can also accurately predict abalone age, if we use 'rings', it will not be a prediction, so we need to focused on other variables instead of 'rings'.
+
+
+## Question 4
+```{r}
+lm_model <- linear_reg() %>% 
+  set_engine("lm")
+```
+
+## Question 5
+```{r}
+lm_wflow <- workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(abalone_recipe)
+```
+
+## Question 6
+```{r}
+lm_fit <- fit(lm_wflow, abalone_train)
+```
+
+## Question 7
+```{r}
+abalone_metrics <- metric_set(rmse, rsq, mae)
+
+abalone_train_res <- predict(lm_fit, new_data = abalone_train %>% select(-age))
+abalone_train_res <- bind_cols(abalone_train_res, abalone_train %>% select(age))
+
+rmse(abalone_train_res, truth = age, estimate = .pred)
+abalone_metrics(abalone_train_res, truth = age, estimate = .pred)
+```
+R^2 is equal to positive 0.5451854, which means about 54.5% of variation between 'age' and other predictors can be explained by the linear regression model.
+
+
